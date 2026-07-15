@@ -1,0 +1,23 @@
+# Dependencias (¡lo más pesado que nunca debe subirse!)
+node_modules/
+client/node_modules/
+
+# Archivos de configuración local y contraseñas de base de datos
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Carpetas de compilación (producción)
+dist/
+build/
+.next/
+out/
+
+# Archivos temporales del sistema y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
