@@ -1,23 +1,16 @@
 const express = require('express');
-const cors = require('cors');
+const cors = require('cors'); // <-- Agregar esta línea
 require('dotenv').config();
 
-require('./config/db');
-
-const citasRoutes = require('./routes/citasRoutes');
-
 const app = express();
-app.use(cors());
+
+app.use(cors()); // <-- Agregar esta línea (permite que React se conecte)
 app.use(express.json());
 
-app.use('/api/citas', citasRoutes);
-
-app.get('/', (req, res) => {
-  res.send('API de Citas Dentales funcionando correctamente');
-});
+// Rutas
+app.use('/api/citas', require('./routes/citasRoutes'));
 
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
   console.log(`🚀 Servidor backend activo en http://localhost:${PORT}`);
 });
