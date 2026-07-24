@@ -1,14 +1,15 @@
 const express = require('express');
-const cors = require('cors'); // <-- Agregar esta línea
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 
-app.use(cors()); // <-- Agregar esta línea (permite que React se conecte)
+app.use(cors());
 app.use(express.json());
 
-// Rutas
+// Rutas del sistema
 app.use('/api/citas', require('./routes/citasRoutes'));
+app.use('/api/auth', require('./routes/authRoutes')); // <-- Nueva línea
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
