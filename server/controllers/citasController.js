@@ -4,7 +4,10 @@ const db = require('../config/db');
 exports.obtenerCitas = (req, res) => {
   const query = 'SELECT * FROM citas';
   db.query(query, (err, results) => {
-    if (err) return res.status(500).json({ error: 'Error al obtener las citas' });
+    if (err) {
+      console.error('Error MySQL (GET):', err);
+      return res.status(500).json({ error: 'Error al obtener las citas' });
+    }
     res.json(results);
   });
 };
@@ -17,7 +20,10 @@ exports.crearCita = (req, res) => {
   }
   const query = 'INSERT INTO citas (paciente_id, servicio, fecha_cita, hora_cita) VALUES (?, ?, ?, ?)';
   db.query(query, [paciente_id, servicio, fecha_cita, hora_cita], (err, result) => {
-    if (err) return res.status(500).json({ error: 'Error al registrar la cita' });
+    if (err) {
+      console.error('⚠️ Detalle del error de MySQL:', err.sqlMessage || err); // <-- Imprime el motivo exacto
+      return res.status(500).json({ error: 'Error al registrar la cita' });
+    }
     res.status(201).json({ message: 'Cita agendada exitosamente', id: result.insertId });
   });
 };
