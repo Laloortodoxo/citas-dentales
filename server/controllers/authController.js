@@ -2,7 +2,7 @@ const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// 1. Registro de usuario
+// 1. Registro de usuario con validaciones
 exports.registrarUsuario = async (req, res) => {
   const { nombre, email, password } = req.body;
 
@@ -10,8 +10,18 @@ exports.registrarUsuario = async (req, res) => {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
 
+  // Validación 1: Formato de Correo Electrónico
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Por favor, ingresa un correo electrónico válido' });
+  }
+
+  // Validación 2: Longitud mínima de contraseña
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  }
+
   try {
-    // Encriptar la contraseña antes de guardarla
     const salt = await bcrypt.genSalt(10);
     const passwordHashed = await bcrypt.hash(password, salt);
 
@@ -45,13 +55,11 @@ exports.loginUsuario = (req, res) => {
 
     const usuario = results[0];
 
-    // Verificar la contraseña
     const passwordValido = await bcrypt.compare(password, usuario.password);
     if (!passwordValido) {
       return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
 
-    // Generar Token JWT de sesión
     const token = jwt.sign(
       { id: usuario.id, nombre: usuario.nombre },
       process.env.JWT_SECRET || 'secreto_jwt_temporal',
