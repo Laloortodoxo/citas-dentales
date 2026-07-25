@@ -13,10 +13,15 @@ function App() {
   const [editandoId, setEditandoId] = useState(null);
   const [mensaje, setMensaje] = useState('');
 
-  // 1. Cargar Citas al estar autenticado
+  // Fecha mínima para el calendario (Hoy)
+  const hoyStr = new Date().toISOString().split('T')[0];
+
+  // 1. Cargar Citas filtradas por el ID del usuario autenticado
   const obtenerCitas = async () => {
+    if (!usuario?.id) return;
+
     try {
-      const res = await fetch('http://localhost:5000/api/citas');
+      const res = await fetch(`http://localhost:5000/api/citas/paciente/${usuario.id}`);
       const data = await res.json();
       setCitas(data);
     } catch (error) {
@@ -25,10 +30,10 @@ function App() {
   };
 
   useEffect(() => {
-    if (token) {
+    if (token && usuario) {
       obtenerCitas();
     }
-  }, [token]);
+  }, [token, usuario]);
 
   // 2. Manejo de inputs del Login / Registro
   const handleAuthChange = (e) => {
@@ -180,13 +185,14 @@ function App() {
           </div>
 
           <div>
-            <label>Contraseña:</label>
+            <label>Contraseña (mínimo 6 caracteres):</label>
             <input
               type="password"
               name="password"
               value={authData.password}
               onChange={handleAuthChange}
               required
+              minLength={6}
               style={{ width: '100%', padding: '8px', marginTop: '4px' }}
             />
           </div>
@@ -248,6 +254,7 @@ function App() {
             <input
               type="date"
               name="fecha_cita"
+              min={hoyStr}
               value={formData.fecha_cita}
               onChange={handleCitaChange}
               required
