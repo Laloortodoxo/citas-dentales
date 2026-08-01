@@ -1,10 +1,10 @@
 const db = require('../config/db');
 
-// 1. Obtener citas solo del paciente autenticado
+// 1. Obtener citas solo del paciente autenticado (incluye estado)
 exports.obtenerCitasPorPaciente = (req, res) => {
   const { paciente_id } = req.params;
 
-  const query = 'SELECT * FROM citas WHERE paciente_id = ?';
+  const query = 'SELECT id, servicio, fecha_cita, hora_cita, estado, paciente_id FROM citas WHERE paciente_id = ? ORDER BY fecha_cita ASC, hora_cita ASC';
   db.query(query, [paciente_id], (err, results) => {
     if (err) {
       console.log('❌ Error MySQL GET por paciente:', err.sqlMessage || err);
@@ -14,10 +14,10 @@ exports.obtenerCitasPorPaciente = (req, res) => {
   });
 };
 
-// 2. Obtener TODAS las citas con nombre del paciente (Exclusivo Admin / Odontólogo)
+// 2. Obtener TODAS las citas con nombre del paciente y estado (Exclusivo Admin)
 exports.obtenerTodasLasCitas = (req, res) => {
   const query = `
-    SELECT citas.id, citas.servicio, citas.fecha_cita, citas.hora_cita, citas.paciente_id, usuarios.nombre AS nombre_paciente 
+    SELECT citas.id, citas.servicio, citas.fecha_cita, citas.hora_cita, citas.estado, citas.paciente_id, usuarios.nombre AS nombre_paciente 
     FROM citas 
     JOIN usuarios ON citas.paciente_id = usuarios.id 
     ORDER BY citas.fecha_cita ASC, citas.hora_cita ASC
@@ -32,7 +32,7 @@ exports.obtenerTodasLasCitas = (req, res) => {
   });
 };
 
-// 3. Crear una nueva cita con validación de fecha pasada
+// 3. Crear una nueva cita (por defecto la base de datos le asigna estado 'pendiente')
 exports.crearCita = (req, res) => {
   const { paciente_id, servicio, fecha_cita, hora_cita } = req.body;
 
@@ -59,7 +59,7 @@ exports.crearCita = (req, res) => {
   });
 };
 
-// 4. Actualizar una cita existente
+// 4. Actualizar información de una cita
 exports.actualizarCita = (req, res) => {
   const { id } = req.params;
   const { servicio, fecha_cita, hora_cita } = req.body;
@@ -90,5 +90,28 @@ exports.eliminarCita = (req, res) => {
       return res.status(404).json({ error: 'Cita no encontrada' });
     }
     res.json({ message: 'Cita eliminada exitosamente' });
+  });
+};
+
+// 6. NUEVA: Cambiar el estado de la cita (confirmada / cancelada / pendiente)
+exports.cambiarEstadoCita = (req, res) => {
+  const { id } = req.params;
+  const { estado } = req.body;
+
+  const estadosValidos = ['pendiente', 'confirmada', 'cancelada'];
+  if (!estadosValidos.includes(estado)) {
+    return res.status(400).json({ error: 'Estado no válido' });
+  }
+
+  const query = 'UPDATE citas SET estado = ? WHERE id = ?';
+  db.query(query, [estado, id], (err, result) => {
+    if (err) {
+      console.log('❌ Error al cambiar estado:', err.sqlMessage || err);
+      return res.status(500).json({ error: 'Error al actualizar el estado' });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Cita no encontrada' });
+    }
+    res.json({ message: `Cita ${estado} con éxito` });
   });
 };
