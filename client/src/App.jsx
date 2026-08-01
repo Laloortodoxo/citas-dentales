@@ -1,29 +1,47 @@
 import { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
+import './App.css';
 
 function App() {
-  // Estado de Autenticación
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [usuario, setUsuario] = useState(JSON.parse(localStorage.getItem('usuario')) || null);
-  const [modoAuth, setModoAuth] = useState('login'); // 'login' o 'registro'
+  const [modoAuth, setModoAuth] = useState('login');
   const [authData, setAuthData] = useState({ nombre: '', email: '', password: '' });
 
-  // Estado de Citas
   const [citas, setCitas] = useState([]);
   const [formData, setFormData] = useState({ servicio: '', fecha_cita: '', hora_cita: '' });
   const [editandoId, setEditandoId] = useState(null);
-  const [mensaje, setMensaje] = useState('');
 
-  // Fecha mínima para el calendario (Hoy)
   const hoyStr = new Date().toISOString().split('T')[0];
 
-  // 1. Cargar Citas filtradas por el ID del usuario autenticado
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  });
+
   const obtenerCitas = async () => {
-    if (!usuario?.id) return;
+    if (!usuario || !token) return;
+    const esAdmin = usuario.rol === 'admin';
+    const url = esAdmin 
+      ? 'http://localhost:5000/api/citas/admin/todas' 
+      : `http://localhost:5000/api/citas/paciente/${usuario.id}`;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/citas/paciente/${usuario.id}`);
+      const res = await fetch(url, { headers: getAuthHeaders() });
       const data = await res.json();
-      setCitas(data);
+      if (res.ok) {
+        setCitas(data);
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error de servidor',
+          text: data.error,
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3000
+        });
+      }
     } catch (error) {
       console.error('Error al obtener citas:', error);
     }
@@ -35,16 +53,12 @@ function App() {
     }
   }, [token, usuario]);
 
-  // 2. Manejo de inputs del Login / Registro
   const handleAuthChange = (e) => {
     setAuthData({ ...authData, [e.target.name]: e.target.value });
   };
 
-  // 3. Submit de Login o Registro
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
-    setMensaje('');
-
     const url = modoAuth === 'login' 
       ? 'http://localhost:5000/api/auth/login' 
       : 'http://localhost:5000/api/auth/registro';
@@ -60,69 +74,125 @@ function App() {
 
       if (res.ok) {
         if (modoAuth === 'registro') {
-          setMensaje('✅ Registro exitoso. ¡Ahora puedes iniciar sesión!');
+          Swal.fire({
+            icon: 'success',
+            title: '¡Registro Exitoso!',
+            text: 'Cuenta creada correctamente. Ahora puedes iniciar sesión.',
+            confirmButtonColor: '#0284c7'
+          });
           setModoAuth('login');
           setAuthData({ nombre: '', email: '', password: '' });
         } else {
-          // Guardar sesión
+          Swal.fire({
+            icon: 'success',
+            title: `¡Bienvenido, ${data.usuario.nombre}!`,
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2500
+          });
           localStorage.setItem('token', data.token);
           localStorage.setItem('usuario', JSON.stringify(data.usuario));
           setToken(data.token);
           setUsuario(data.usuario);
-          setMensaje('');
         }
       } else {
-        setMensaje(`❌ ${data.error}`);
+        Swal.fire({
+          icon: 'error',
+          title: 'Acceso fallido',
+          text: data.error,
+          confirmButtonColor: '#0284c7'
+        });
       }
     } catch (error) {
-      setMensaje('❌ Error de conexión con el servidor');
+      Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
     }
   };
 
-  // 4. Cerrar Sesión
   const handleCerrarSesion = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('usuario');
-    setToken('');
-    setUsuario(null);
-    setCitas([]);
+    Swal.fire({
+      title: '¿Cerrar sesión?',
+      text: 'Tendrás que ingresar tus credenciales nuevamente.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Sí, salir',
+      cancelButtonText: 'Cancelar'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('usuario');
+        setToken('');
+        setUsuario(null);
+        setCitas([]);
+      }
+    });
   };
 
-  // 5. Manejo del formulario de Citas
   const handleCitaChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleCitaSubmit = async (e) => {
     e.preventDefault();
-    setMensaje('');
-
     const url = editandoId
       ? `http://localhost:5000/api/citas/${editandoId}`
       : 'http://localhost:5000/api/citas';
-
     const method = editandoId ? 'PUT' : 'POST';
     const bodyCita = { ...formData, paciente_id: usuario.id };
 
     try {
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(bodyCita)
       });
-
       const data = await res.json();
 
       if (res.ok) {
-        setMensaje(editandoId ? '✅ Cita actualizada con éxito' : '✅ Cita registrada con éxito');
+        Swal.fire({
+          icon: 'success',
+          title: editandoId ? 'Cita Actualizada' : 'Cita Agendada',
+          text: data.message || 'Operación realizada correctamente.',
+          timer: 2000,
+          showConfirmButton: false
+        });
         setFormData({ servicio: '', fecha_cita: '', hora_cita: '' });
         setEditandoId(null);
         obtenerCitas();
       } else {
-        setMensaje(`❌ Error: ${data.error}`);
+        Swal.fire('Error', data.error, 'error');
       }
     } catch (error) {
-      setMensaje('❌ Error de conexión');
+      Swal.fire('Error', 'Error de conexión', 'error');
+    }
+  };
+
+  const handleCambiarEstado = async (id, nuevoEstado) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/citas/${id}/estado`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ estado: nuevoEstado })
+      });
+
+      if (res.ok) {
+        Swal.fire({
+          icon: 'success',
+          title: `Cita marcada como ${nuevoEstado}`,
+          toast: true,
+          position: 'bottom-end',
+          showConfirmButton: false,
+          timer: 2000
+        });
+        obtenerCitas();
+      } else {
+        const data = await res.json();
+        Swal.fire('Error', data.error, 'error');
+      }
+    } catch (error) {
+      console.error('Error al cambiar el estado:', error);
     }
   };
 
@@ -135,175 +205,192 @@ function App() {
     });
   };
 
-  const handleEliminar = async (id) => {
-    if (!window.confirm('¿Deseas eliminar esta cita?')) return;
-    try {
-      const res = await fetch(`http://localhost:5000/api/citas/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setMensaje('🗑️ Cita eliminada');
-        obtenerCitas();
+  const handleEliminar = (id) => {
+    Swal.fire({
+      title: '¿Eliminar cita?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          const res = await fetch(`http://localhost:5000/api/citas/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+          });
+          if (res.ok) {
+            Swal.fire({
+              icon: 'success',
+              title: '¡Eliminada!',
+              text: 'La cita fue eliminada del sistema.',
+              timer: 1800,
+              showConfirmButton: false
+            });
+            obtenerCitas();
+          } else {
+            const data = await res.json();
+            Swal.fire('Error', data.error, 'error');
+          }
+        } catch (error) {
+          Swal.fire('Error', 'Error de conexión al eliminar', 'error');
+        }
       }
-    } catch (error) {
-      setMensaje('❌ Error de conexión al eliminar');
-    }
+    });
   };
 
-  // --- VISTA DE LOGIN Y REGISTRO ---
   if (!token) {
     return (
-      <div style={{ maxWidth: '400px', margin: '50px auto', fontFamily: 'sans-serif', padding: '20px', border: '1px solid #ddd', borderRadius: '8px' }}>
-        <h2>🦷 DentalCare - Autenticación</h2>
-        <h3>{modoAuth === 'login' ? '🔑 Iniciar Sesión' : '📝 Crear Cuenta'}</h3>
-        
-        {mensaje && <p style={{ fontWeight: 'bold' }}>{mensaje}</p>}
-
-        <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {modoAuth === 'registro' && (
-            <div>
-              <label>Nombre Completo:</label>
-              <input
-                type="text"
-                name="nombre"
-                value={authData.nombre}
-                onChange={handleAuthChange}
-                required
-                style={{ width: '100%', padding: '8px', marginTop: '4px' }}
-              />
+      <div className="auth-container">
+        <div className="auth-card">
+          <div className="auth-header">
+            <h2>🦷 DentalCare</h2>
+            <h3>{modoAuth === 'login' ? '🔑 Iniciar Sesión' : '📝 Crear Cuenta'}</h3>
+          </div>
+          
+          <form onSubmit={handleAuthSubmit}>
+            {modoAuth === 'registro' && (
+              <div className="form-group">
+                <label>Nombre Completo:</label>
+                <input type="text" name="nombre" value={authData.nombre} onChange={handleAuthChange} required placeholder="Ej. Elena Ramos" />
+              </div>
+            )}
+            <div className="form-group">
+              <label>Correo Electrónico:</label>
+              <input type="email" name="email" value={authData.email} onChange={handleAuthChange} required placeholder="correo@ejemplo.com" />
             </div>
-          )}
+            <div className="form-group">
+              <label>Contraseña:</label>
+              <input type="password" name="password" value={authData.password} onChange={handleAuthChange} required minLength={6} placeholder="••••••••" />
+            </div>
 
-          <div>
-            <label>Correo Electrónico:</label>
-            <input
-              type="email"
-              name="email"
-              value={authData.email}
-              onChange={handleAuthChange}
-              required
-              style={{ width: '100%', padding: '8px', marginTop: '4px' }}
-            />
+            <button type="submit" className="btn btn-primary btn-block">
+              {modoAuth === 'login' ? 'Ingresar' : 'Registrarse'}
+            </button>
+          </form>
+
+          <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.9rem' }}>
+            {modoAuth === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+            <button onClick={() => setModoAuth(modoAuth === 'login' ? 'registro' : 'login')} className="btn-link">
+              {modoAuth === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
+            </button>
           </div>
-
-          <div>
-            <label>Contraseña (mínimo 6 caracteres):</label>
-            <input
-              type="password"
-              name="password"
-              value={authData.password}
-              onChange={handleAuthChange}
-              required
-              minLength={6}
-              style={{ width: '100%', padding: '8px', marginTop: '4px' }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            style={{ padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginTop: '10px' }}
-          >
-            {modoAuth === 'login' ? 'Ingresar' : 'Registrarse'}
-          </button>
-        </form>
-
-        <p style={{ marginTop: '15px', textAlign: 'center' }}>
-          {modoAuth === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
-          <button
-            onClick={() => { setModoAuth(modoAuth === 'login' ? 'registro' : 'login'); setMensaje(''); }}
-            style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }}
-          >
-            {modoAuth === 'login' ? 'Regístrate aquí' : 'Inicia Sesión'}
-          </button>
-        </p>
+        </div>
       </div>
     );
   }
 
-  // --- VISTA PRINCIPAL (PANEL DE CITAS) ---
+  const esAdmin = usuario?.rol === 'admin';
+
   return (
-    <div style={{ maxWidth: '600px', margin: '40px auto', fontFamily: 'sans-serif', padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>👋 Hola, {usuario?.nombre}</h2>
-        <button
-          onClick={handleCerrarSesion}
-          style={{ backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer' }}
-        >
+    <div className="dashboard-container">
+      <nav className="user-navbar">
+        <div className="user-info">
+          <h2>👋 Hola, {usuario?.nombre}</h2>
+          <span className={`role-badge ${esAdmin ? 'role-admin' : 'role-paciente'}`}>
+            {esAdmin ? '👨‍⚕️ Odontólogo / Admin' : '👤 Paciente'}
+          </span>
+        </div>
+        <button onClick={handleCerrarSesion} className="btn btn-danger">
           Cerrar Sesión
         </button>
-      </div>
+      </nav>
 
-      <div style={{ background: '#f4f4f9', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
-        <h3>{editandoId ? '✏️ Editar Cita' : '📅 Agendar Nueva Cita'}</h3>
-        {mensaje && <p style={{ fontWeight: 'bold' }}>{mensaje}</p>}
+      <div className="dashboard-grid">
+        <aside className="form-card">
+          <h3>{editandoId ? '✏️ Editar Cita' : '📅 Agendar Nueva Cita'}</h3>
+          
+          <form onSubmit={handleCitaSubmit}>
+            <div className="form-group">
+              <label>Servicio Dental:</label>
+              <input type="text" name="servicio" placeholder="Ej. Limpieza, Ortodoncia" value={formData.servicio} onChange={handleCitaChange} required />
+            </div>
 
-        <form onSubmit={handleCitaSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div>
-            <label>Servicio Dental: </label>
-            <input
-              type="text"
-              name="servicio"
-              placeholder="Ej. Limpieza, Ortodoncia"
-              value={formData.servicio}
-              onChange={handleCitaChange}
-              required
-              style={{ width: '100%', padding: '8px', marginTop: '4px' }}
-            />
-          </div>
-
-          <div>
-            <label>Fecha: </label>
-            <input
-              type="date"
-              name="fecha_cita"
-              min={hoyStr}
-              value={formData.fecha_cita}
-              onChange={handleCitaChange}
-              required
-              style={{ width: '100%', padding: '8px', marginTop: '4px' }}
-            />
-          </div>
-
-          <div>
-            <label>Hora: </label>
-            <input
-              type="time"
-              name="hora_cita"
-              value={formData.hora_cita}
-              onChange={handleCitaChange}
-              required
-              style={{ width: '100%', padding: '8px', marginTop: '4px' }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            style={{ padding: '10px', backgroundColor: editandoId ? '#28a745' : '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginTop: '10px' }}
-          >
-            {editandoId ? 'Guardar Cambios' : 'Guardar Cita'}
-          </button>
-        </form>
-      </div>
-
-      <h2>📅 Citas Programadas</h2>
-      {citas.length === 0 ? (
-        <p>No hay citas agendadas aún.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {citas.map((cita) => (
-            <li key={cita.id} style={{ border: '1px solid #ddd', padding: '12px', borderRadius: '6px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <strong>Servicio:</strong> {cita.servicio} <br />
-                <strong>Fecha:</strong> {new Date(cita.fecha_cita).toLocaleDateString()} | <strong>Hora:</strong> {cita.hora_cita} <br />
-                <small style={{ color: '#666' }}>Paciente ID: {cita.paciente_id}</small>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Fecha:</label>
+                <input type="date" name="fecha_cita" min={hoyStr} value={formData.fecha_cita} onChange={handleCitaChange} required />
               </div>
-
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button onClick={() => handleEditar(cita)} style={{ backgroundColor: '#ffc107', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Editar</button>
-                <button onClick={() => handleEliminar(cita.id)} style={{ backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Eliminar</button>
+              <div className="form-group">
+                <label>Hora:</label>
+                <input type="time" name="hora_cita" value={formData.hora_cita} onChange={handleCitaChange} required />
               </div>
-            </li>
-          ))}
-        </ul>
-      )}
+            </div>
+
+            <button type="submit" className={`btn ${editandoId ? 'btn-success' : 'btn-primary'} btn-block`}>
+              {editandoId ? 'Guardar Cambios' : 'Guardar Cita'}
+            </button>
+            {editandoId && (
+              <button type="button" onClick={() => { setEditandoId(null); setFormData({ servicio: '', fecha_cita: '', hora_cita: '' }); }} className="btn btn-secondary btn-block" style={{ marginTop: '8px' }}>
+                Cancelar Edición
+              </button>
+            )}
+          </form>
+        </aside>
+
+        <main className="citas-section">
+          <h2 className="section-title">
+            {esAdmin ? '📋 Agenda General de la Clínica' : '📅 Mis Citas Programadas'}
+          </h2>
+
+          {citas.length === 0 ? (
+            <div className="empty-state">
+              <p>No hay citas agendadas por el momento.</p>
+            </div>
+          ) : (
+            <ul className="citas-list">
+              {citas.map((cita) => (
+                <li key={cita.id} className="cita-card">
+                  <div className="cita-details">
+                    <div className="cita-servicio">{cita.servicio}</div>
+                    <div className="cita-meta">
+                      📅 {new Date(cita.fecha_cita).toLocaleDateString()} | ⏰ {cita.hora_cita}
+                    </div>
+                    
+                    <div>
+                      <span className={`status-pill status-${cita.estado}`}>
+                        {cita.estado === 'confirmada' ? '🟢 Confirmada' : cita.estado === 'cancelada' ? '🔴 Cancelada' : '🟡 Pendiente'}
+                      </span>
+                    </div>
+
+                    {esAdmin && (
+                      <div className="paciente-tag">
+                        👤 Paciente: {cita.nombre_paciente || `ID: ${cita.paciente_id}`}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="cita-actions">
+                    {esAdmin && (
+                      <>
+                        <button 
+                          onClick={() => handleCambiarEstado(cita.id, 'confirmada')} 
+                          title="Confirmar Cita"
+                          className="btn btn-success btn-icon"
+                        >
+                          ✓
+                        </button>
+                        <button 
+                          onClick={() => handleCambiarEstado(cita.id, 'cancelada')} 
+                          title="Cancelar Cita"
+                          className="btn btn-danger btn-icon"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => handleEditar(cita)} className="btn btn-warning btn-icon">Editar</button>
+                    <button onClick={() => handleEliminar(cita.id)} className="btn btn-secondary btn-icon">Eliminar</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
