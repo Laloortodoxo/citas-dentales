@@ -2,19 +2,16 @@ const express = require('express');
 const router = express.Router();
 const citasController = require('../controllers/citasController');
 
-// 1. Ruta exclusiva para Administrador (Obtener todas las citas de la clínica)
+// Ruta exclusiva para Administrador (Obtener todas las citas de la clínica)
 router.get('/admin/todas', citasController.obtenerTodasLasCitas);
 
-// 2. Ruta para Paciente (Obtener solo sus citas)
+// Ruta para cambiar estado de cita (Admin)
+router.patch('/:id/estado', citasController.cambiarEstadoCita);
+
+// Rutas Generales / Paciente
 router.get('/paciente/:paciente_id', citasController.obtenerCitasPorPaciente);
-
-// 3. Crear una nueva cita
 router.post('/', citasController.crearCita);
-
-// 4. Actualizar una cita
 router.put('/:id', citasController.actualizarCita);
-
-// 5. Eliminar una cita
 router.delete('/:id', citasController.eliminarCita);
 
 module.exports = router;
