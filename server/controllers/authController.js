@@ -10,13 +10,13 @@ exports.registrarUsuario = async (req, res) => {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
 
-  // Validación 1: Formato de Correo Electrónico
+  // Validación: Formato de Correo Electrónico
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: 'Por favor, ingresa un correo electrónico válido' });
   }
 
-  // Validación 2: Longitud mínima de contraseña
+  // Validación: Longitud mínima de contraseña
   if (password.length < 6) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
   }
@@ -40,7 +40,7 @@ exports.registrarUsuario = async (req, res) => {
   }
 };
 
-// 2. Login de usuario
+// 2. Login de usuario con soporte de ROL
 exports.loginUsuario = (req, res) => {
   const { email, password } = req.body;
 
@@ -60,16 +60,23 @@ exports.loginUsuario = (req, res) => {
       return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
 
+    // Incluimos el ROL en la firma del token JWT
     const token = jwt.sign(
-      { id: usuario.id, nombre: usuario.nombre },
+      { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol },
       process.env.JWT_SECRET || 'secreto_jwt_temporal',
       { expiresIn: '2h' }
     );
 
+    // Devolvemos los datos del usuario junto con su ROL al cliente
     res.json({
       message: 'Inicio de sesión exitoso',
       token,
-      usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email }
+      usuario: { 
+        id: usuario.id, 
+        nombre: usuario.nombre, 
+        email: usuario.email, 
+        rol: usuario.rol || 'paciente' 
+      }
     });
   });
 };
