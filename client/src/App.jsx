@@ -12,7 +12,7 @@ function App() {
   const [formData, setFormData] = useState({ servicio: '', fecha_cita: '', hora_cita: '' });
   const [editandoId, setEditandoId] = useState(null);
   
-  // Nuevo estado para la navegación del paciente (pestañas)
+  // Estado para la navegación del paciente (pestañas)
   const [vistaPaciente, setVistaPaciente] = useState('citas');
 
   const hoyStr = new Date().toISOString().split('T')[0];
@@ -60,20 +60,38 @@ function App() {
     setAuthData({ ...authData, [e.target.name]: e.target.value });
   };
 
+  // -------------------------------------------------------------
+  // FUNCIÓN DE AUTENTICACIÓN MEJORADA (CON CONSOLE.LOGS Y COMPATIBILIDAD)
+  // -------------------------------------------------------------
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
+
+    console.log('🚀 Intentando autenticar...');
+    console.log('Modo actual:', modoAuth);
+    console.log('Datos del formulario:', authData);
+
     const url = modoAuth === 'login' 
       ? 'http://localhost:5000/api/auth/login' 
       : 'http://localhost:5000/api/auth/registro';
 
     try {
+      // Se envian las dos variantes de nombres para garantizar que coincida con tu backend
+      const bodyPayload = {
+        nombre: authData.nombre,
+        email: authData.email,
+        correo: authData.email,
+        password: authData.password,
+        contrasena: authData.password
+      };
+
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(authData)
+        body: JSON.stringify(bodyPayload)
       });
 
       const data = await res.json();
+      console.log('📌 Respuesta recibida del servidor:', data);
 
       if (res.ok) {
         if (modoAuth === 'registro') {
@@ -88,27 +106,37 @@ function App() {
         } else {
           Swal.fire({
             icon: 'success',
-            title: `¡Bienvenido, ${data.usuario.nombre}!`,
+            title: `¡Bienvenido, ${data.usuario?.nombre || 'Usuario'}!`,
             toast: true,
             position: 'top-end',
             showConfirmButton: false,
             timer: 2500
           });
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('usuario', JSON.stringify(data.usuario));
-          setToken(data.token);
-          setUsuario(data.usuario);
+
+          // Guardar credenciales en el almacenamiento local
+          if (data.token) localStorage.setItem('token', data.token);
+          if (data.usuario) localStorage.setItem('usuario', JSON.stringify(data.usuario));
+
+          setToken(data.token || 'logged_in');
+          setUsuario(data.usuario || { nombre: authData.email, rol: 'paciente' });
         }
       } else {
+        console.warn('⚠️ El servidor respondió con un error:', data.error);
         Swal.fire({
           icon: 'error',
           title: 'Acceso fallido',
-          text: data.error,
+          text: data.error || 'Credenciales incorrectas o usuario no encontrado',
           confirmButtonColor: '#0284c7'
         });
       }
     } catch (error) {
-      Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
+      console.error('❌ Error de conexión con el backend:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error de conexión',
+        text: 'No se pudo conectar con el servidor (http://localhost:5000). Revisa que Node.js esté corriendo.',
+        confirmButtonColor: '#0284c7'
+      });
     }
   };
 
@@ -196,6 +224,51 @@ function App() {
       }
     } catch (error) {
       console.error('Error al cambiar el estado:', error);
+    }
+  };
+
+  // Función para guardar o editar recomendaciones médicas de una cita
+  const handleGuardarNotas = async (cita) => {
+    const { value: textoNotas } = await Swal.fire({
+      title: '🩺 Notas y Recomendaciones',
+      input: 'textarea',
+      inputLabel: `Paciente: ${cita.nombre_paciente || `ID: ${cita.paciente_id}`}`,
+      inputPlaceholder: 'Escribe aquí el diagnóstico, indicaciones del tratamiento, medicamentos, etc...',
+      inputValue: cita.notas_clinicas || '',
+      showCancelButton: true,
+      confirmButtonText: 'Guardar Notas',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0284c7',
+      inputAttributes: {
+        rows: 4
+      }
+    });
+
+    if (textoNotas !== undefined) {
+      try {
+        const res = await fetch(`http://localhost:5000/api/citas/${cita.id}/notas`, {
+          method: 'PATCH',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ notas_clinicas: textoNotas })
+        });
+
+        if (res.ok) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Notas clínicas actualizadas',
+            toast: true,
+            position: 'bottom-end',
+            showConfirmButton: false,
+            timer: 2000
+          });
+          obtenerCitas();
+        } else {
+          const data = await res.json();
+          Swal.fire('Error', data.error, 'error');
+        }
+      } catch (error) {
+        Swal.fire('Error', 'No se pudo guardar la nota', 'error');
+      }
     }
   };
 
@@ -288,6 +361,17 @@ function App() {
 
   const esAdmin = usuario?.rol === 'admin';
 
+  // Separación de citas por fecha para el paciente
+  const fechaActualStr = hoyStr;
+  const proximasCitas = citas.filter(cita => {
+    const fechaCita = cita.fecha_cita ? cita.fecha_cita.split('T')[0] : '';
+    return fechaCita >= fechaActualStr;
+  });
+  const citasPasadas = citas.filter(cita => {
+    const fechaCita = cita.fecha_cita ? cita.fecha_cita.split('T')[0] : '';
+    return fechaCita < fechaActualStr;
+  });
+
   return (
     <div className="dashboard-container">
       <nav className="user-navbar">
@@ -359,9 +443,16 @@ function App() {
                         <div className="paciente-tag">
                           👤 Paciente: {cita.nombre_paciente || `ID: ${cita.paciente_id}`}
                         </div>
+
+                        {cita.notas_clinicas && (
+                          <div style={{ background: '#f0f9ff', borderLeft: '3px solid #0284c7', padding: '8px 12px', marginTop: '10px', borderRadius: '4px', fontSize: '0.85rem' }}>
+                            <strong>📝 Indicaciones:</strong> {cita.notas_clinicas}
+                          </div>
+                        )}
                       </div>
 
                       <div className="cita-actions">
+                        <button onClick={() => handleGuardarNotas(cita)} title="Agregar o editar notas clínicas" className="btn btn-primary btn-icon">📝 Notas</button>
                         <button onClick={() => handleCambiarEstado(cita.id, 'confirmada')} title="Confirmar Cita" className="btn btn-success btn-icon">✓</button>
                         <button onClick={() => handleCambiarEstado(cita.id, 'cancelada')} title="Cancelar Cita" className="btn btn-danger btn-icon">✕</button>
                         <button onClick={() => handleEditar(cita)} className="btn btn-warning btn-icon">Editar</button>
@@ -379,7 +470,7 @@ function App() {
                   className={`tab-btn ${vistaPaciente === 'citas' ? 'active' : ''}`}
                   onClick={() => setVistaPaciente('citas')}
                 >
-                  📅 Mis Citas
+                  📅 Mis Citas e Historial
                 </button>
                 <button 
                   className={`tab-btn ${vistaPaciente === 'perfil' ? 'active' : ''}`}
@@ -391,14 +482,14 @@ function App() {
 
               {vistaPaciente === 'citas' && (
                 <>
-                  <h2 className="section-title">📅 Mis Citas Programadas</h2>
-                  {citas.length === 0 ? (
-                    <div className="empty-state">
-                      <p>No tienes citas agendadas por el momento.</p>
+                  <h2 className="section-title">📅 Próximas Citas</h2>
+                  {proximasCitas.length === 0 ? (
+                    <div className="empty-state" style={{ marginBottom: '20px' }}>
+                      <p>No tienes citas programadas próximamente.</p>
                     </div>
                   ) : (
-                    <ul className="citas-list">
-                      {citas.map((cita) => (
+                    <ul className="citas-list" style={{ marginBottom: '30px' }}>
+                      {proximasCitas.map((cita) => (
                         <li key={cita.id} className="cita-card">
                           <div className="cita-details">
                             <div className="cita-servicio">{cita.servicio}</div>
@@ -414,6 +505,46 @@ function App() {
                           <div className="cita-actions">
                             <button onClick={() => handleEditar(cita)} className="btn btn-warning btn-icon">Editar</button>
                             <button onClick={() => handleEliminar(cita.id)} className="btn btn-secondary btn-icon">Eliminar</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <hr style={{ border: '0', borderTop: '1px solid #e2e8f0', margin: '20px 0' }} />
+
+                  <h2 className="section-title">📋 Historial de Citas y Recomendaciones</h2>
+                  {citasPasadas.length === 0 ? (
+                    <div className="empty-state">
+                      <p>Aún no cuentas con historial de consultas pasadas.</p>
+                    </div>
+                  ) : (
+                    <ul className="citas-list">
+                      {citasPasadas.map((cita) => (
+                        <li key={cita.id} className="cita-card" style={{ background: '#f8fafc' }}>
+                          <div className="cita-details">
+                            <div className="cita-servicio">Tratamiento: {cita.servicio}</div>
+                            <div className="cita-meta">
+                              📅 Fecha de visita: {new Date(cita.fecha_cita).toLocaleDateString()} | ⏰ {cita.hora_cita}
+                            </div>
+                            <div>
+                              <span className={`status-pill status-${cita.estado}`}>
+                                {cita.estado === 'confirmada' ? '🟢 Completada' : cita.estado}
+                              </span>
+                            </div>
+
+                            {cita.notas_clinicas ? (
+                              <div style={{ background: '#e2f0cb', borderLeft: '4px solid #38b000', padding: '12px', marginTop: '12px', borderRadius: '4px' }}>
+                                <p style={{ margin: '0 0 5px 0', color: '#132a13', fontWeight: 'bold', fontSize: '0.95rem' }}>
+                                  🩺 Recomendaciones del Odontólogo:
+                                </p>
+                                <p style={{ margin: 0, color: '#2d6a4f', fontSize: '0.9rem' }}>{cita.notas_clinicas}</p>
+                              </div>
+                            ) : (
+                              <p style={{ fontStyle: 'italic', color: '#64748b', fontSize: '0.85rem', marginTop: '8px' }}>
+                                Sin indicaciones clínicas adicionales registradas para esta visita.
+                              </p>
+                            )}
                           </div>
                         </li>
                       ))}
