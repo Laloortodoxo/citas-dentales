@@ -11,6 +11,9 @@ function App() {
   const [citas, setCitas] = useState([]);
   const [formData, setFormData] = useState({ servicio: '', fecha_cita: '', hora_cita: '' });
   const [editandoId, setEditandoId] = useState(null);
+  
+  // Nuevo estado para la navegación del paciente (pestañas)
+  const [vistaPaciente, setVistaPaciente] = useState('citas');
 
   const hoyStr = new Date().toISOString().split('T')[0];
 
@@ -332,62 +335,120 @@ function App() {
         </aside>
 
         <main className="citas-section">
-          <h2 className="section-title">
-            {esAdmin ? '📋 Agenda General de la Clínica' : '📅 Mis Citas Programadas'}
-          </h2>
-
-          {citas.length === 0 ? (
-            <div className="empty-state">
-              <p>No hay citas agendadas por el momento.</p>
-            </div>
-          ) : (
-            <ul className="citas-list">
-              {citas.map((cita) => (
-                <li key={cita.id} className="cita-card">
-                  <div className="cita-details">
-                    <div className="cita-servicio">{cita.servicio}</div>
-                    <div className="cita-meta">
-                      📅 {new Date(cita.fecha_cita).toLocaleDateString()} | ⏰ {cita.hora_cita}
-                    </div>
-                    
-                    <div>
-                      <span className={`status-pill status-${cita.estado}`}>
-                        {cita.estado === 'confirmada' ? '🟢 Confirmada' : cita.estado === 'cancelada' ? '🔴 Cancelada' : '🟡 Pendiente'}
-                      </span>
-                    </div>
-
-                    {esAdmin && (
-                      <div className="paciente-tag">
-                        👤 Paciente: {cita.nombre_paciente || `ID: ${cita.paciente_id}`}
+          {esAdmin ? (
+            <>
+              <h2 className="section-title">📋 Agenda General de la Clínica</h2>
+              {citas.length === 0 ? (
+                <div className="empty-state">
+                  <p>No hay citas agendadas en el sistema.</p>
+                </div>
+              ) : (
+                <ul className="citas-list">
+                  {citas.map((cita) => (
+                    <li key={cita.id} className="cita-card">
+                      <div className="cita-details">
+                        <div className="cita-servicio">{cita.servicio}</div>
+                        <div className="cita-meta">
+                          📅 {new Date(cita.fecha_cita).toLocaleDateString()} | ⏰ {cita.hora_cita}
+                        </div>
+                        <div>
+                          <span className={`status-pill status-${cita.estado}`}>
+                            {cita.estado === 'confirmada' ? '🟢 Confirmada' : cita.estado === 'cancelada' ? '🔴 Cancelada' : '🟡 Pendiente'}
+                          </span>
+                        </div>
+                        <div className="paciente-tag">
+                          👤 Paciente: {cita.nombre_paciente || `ID: ${cita.paciente_id}`}
+                        </div>
                       </div>
-                    )}
+
+                      <div className="cita-actions">
+                        <button onClick={() => handleCambiarEstado(cita.id, 'confirmada')} title="Confirmar Cita" className="btn btn-success btn-icon">✓</button>
+                        <button onClick={() => handleCambiarEstado(cita.id, 'cancelada')} title="Cancelar Cita" className="btn btn-danger btn-icon">✕</button>
+                        <button onClick={() => handleEditar(cita)} className="btn btn-warning btn-icon">Editar</button>
+                        <button onClick={() => handleEliminar(cita.id)} className="btn btn-secondary btn-icon">Eliminar</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="client-tabs">
+                <button 
+                  className={`tab-btn ${vistaPaciente === 'citas' ? 'active' : ''}`}
+                  onClick={() => setVistaPaciente('citas')}
+                >
+                  📅 Mis Citas
+                </button>
+                <button 
+                  className={`tab-btn ${vistaPaciente === 'perfil' ? 'active' : ''}`}
+                  onClick={() => setVistaPaciente('perfil')}
+                >
+                  👤 Mi Perfil
+                </button>
+              </div>
+
+              {vistaPaciente === 'citas' && (
+                <>
+                  <h2 className="section-title">📅 Mis Citas Programadas</h2>
+                  {citas.length === 0 ? (
+                    <div className="empty-state">
+                      <p>No tienes citas agendadas por el momento.</p>
+                    </div>
+                  ) : (
+                    <ul className="citas-list">
+                      {citas.map((cita) => (
+                        <li key={cita.id} className="cita-card">
+                          <div className="cita-details">
+                            <div className="cita-servicio">{cita.servicio}</div>
+                            <div className="cita-meta">
+                              📅 {new Date(cita.fecha_cita).toLocaleDateString()} | ⏰ {cita.hora_cita}
+                            </div>
+                            <div>
+                              <span className={`status-pill status-${cita.estado}`}>
+                                {cita.estado === 'confirmada' ? '🟢 Confirmada' : cita.estado === 'cancelada' ? '🔴 Cancelada' : '🟡 Pendiente'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="cita-actions">
+                            <button onClick={() => handleEditar(cita)} className="btn btn-warning btn-icon">Editar</button>
+                            <button onClick={() => handleEliminar(cita.id)} className="btn btn-secondary btn-icon">Eliminar</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+
+              {vistaPaciente === 'perfil' && (
+                <div className="profile-card">
+                  <div className="profile-header">
+                    <div className="profile-avatar">
+                      {usuario?.nombre ? usuario.nombre.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <div>
+                      <h3>{usuario?.nombre}</h3>
+                      <p style={{ color: 'var(--text-muted)' }}>{usuario?.email}</p>
+                    </div>
                   </div>
 
-                  <div className="cita-actions">
-                    {esAdmin && (
-                      <>
-                        <button 
-                          onClick={() => handleCambiarEstado(cita.id, 'confirmada')} 
-                          title="Confirmar Cita"
-                          className="btn btn-success btn-icon"
-                        >
-                          ✓
-                        </button>
-                        <button 
-                          onClick={() => handleCambiarEstado(cita.id, 'cancelada')} 
-                          title="Cancelar Cita"
-                          className="btn btn-danger btn-icon"
-                        >
-                          ✕
-                        </button>
-                      </>
-                    )}
-                    <button onClick={() => handleEditar(cita)} className="btn btn-warning btn-icon">Editar</button>
-                    <button onClick={() => handleEliminar(cita.id)} className="btn btn-secondary btn-icon">Eliminar</button>
+                  <div className="form-group">
+                    <label>Nombre Completo:</label>
+                    <input type="text" value={usuario?.nombre || ''} disabled style={{ backgroundColor: '#f1f5f9' }} />
                   </div>
-                </li>
-              ))}
-            </ul>
+                  <div className="form-group">
+                    <label>Correo Electrónico:</label>
+                    <input type="email" value={usuario?.email || ''} disabled style={{ backgroundColor: '#f1f5f9' }} />
+                  </div>
+                  <div className="form-group">
+                    <label>Tipo de Cuenta:</label>
+                    <input type="text" value="Paciente Registrado" disabled style={{ backgroundColor: '#f1f5f9' }} />
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>

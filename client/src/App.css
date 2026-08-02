@@ -197,6 +197,68 @@ html, body, #root {
   padding-bottom: 10px;
 }
 
+/* --- Pestañas de Navegación del Paciente --- */
+.client-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: var(--primary);
+  background-color: #f0f9ff;
+}
+
+.tab-btn.active {
+  color: white;
+  background-color: var(--primary);
+}
+
+/* --- Tarjeta de Perfil --- */
+.profile-card {
+  background: var(--card-bg);
+  padding: 32px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  max-width: 600px;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--bg-main);
+  padding-bottom: 16px;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: #e0f2fe;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
 .citas-list {
   display: flex;
   flex-direction: column;
