@@ -133,3 +133,66 @@ exports.registro = async (req, res) => {
     });
   }
 };
+
+// ------------------------------------------------------------------
+// 3. OBTENER PERFIL DEL USUARIO AUTENTICADO
+// ------------------------------------------------------------------
+exports.obtenerPerfil = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+    const [rows] = await db.query(
+      'SELECT id, nombre, email, rol FROM usuarios WHERE id = ?', 
+      [usuarioId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    return res.json(rows[0]);
+  } catch (error) {
+    console.error('❌ Error en authController (obtenerPerfil):', error);
+    return res.status(500).json({ error: 'Error interno en el servidor.' });
+  }
+};
+
+// ------------------------------------------------------------------
+// 4. ACTUALIZAR PERFIL DEL USUARIO
+// ------------------------------------------------------------------
+exports.actualizarPerfil = async (req, res) => {
+  console.log('\n--------------------------------------------------');
+  console.log('📥 Petición recibida en: PUT /api/auth/perfil');
+  console.log('📦 Body de la petición:', req.body);
+
+  try {
+    const usuarioId = req.usuario.id;
+    const { nombre, email, password } = req.body;
+
+    if (!nombre || !email) {
+      return res.status(400).json({ error: 'El nombre y el correo son obligatorios.' });
+    }
+
+    let query;
+    let params;
+
+    // Si el usuario ingresó una nueva contraseña, la encriptamos; si no, solo actualizamos nombre y email
+    if (password && password.trim() !== '') {
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      query = 'UPDATE usuarios SET nombre = ?, email = ?, password = ? WHERE id = ?';
+      params = [nombre, email, hashedPassword, usuarioId];
+    } else {
+      query = 'UPDATE usuarios SET nombre = ?, email = ? WHERE id = ?';
+      params = [nombre, email, usuarioId];
+    }
+
+    await db.query(query, params);
+
+    console.log(`✅ Perfil actualizado correctamente para el usuario ID: ${usuarioId}`);
+    return res.json({ message: 'Perfil actualizado correctamente' });
+
+  } catch (error) {
+    console.error('❌ Error grave en authController (actualizarPerfil):', error);
+    return res.status(500).json({ error: 'Error interno en el servidor al actualizar el perfil.' });
+  }
+};
