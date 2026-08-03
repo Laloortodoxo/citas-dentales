@@ -15,6 +15,9 @@ function App() {
   // Estado para la navegación del paciente (pestañas)
   const [vistaPaciente, setVistaPaciente] = useState('citas');
 
+  // Estados específicos para el formulario de actualización de Perfil
+  const [perfilData, setPerfilData] = useState({ nombre: '', email: '', password: '' });
+
   const hoyStr = new Date().toISOString().split('T')[0];
 
   const getAuthHeaders = () => ({
@@ -50,9 +53,15 @@ function App() {
     }
   };
 
+  // Cargar datos del perfil al iniciar o al cambiar a la pestaña de perfil
   useEffect(() => {
     if (token && usuario) {
       obtenerCitas();
+      setPerfilData({
+        nombre: usuario.nombre || '',
+        email: usuario.email || '',
+        password: ''
+      });
     }
   }, [token, usuario]);
 
@@ -60,22 +69,14 @@ function App() {
     setAuthData({ ...authData, [e.target.name]: e.target.value });
   };
 
-  // -------------------------------------------------------------
-  // FUNCIÓN DE AUTENTICACIÓN MEJORADA (CON CONSOLE.LOGS Y COMPATIBILIDAD)
-  // -------------------------------------------------------------
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
-
-    console.log('🚀 Intentando autenticar...');
-    console.log('Modo actual:', modoAuth);
-    console.log('Datos del formulario:', authData);
 
     const url = modoAuth === 'login' 
       ? 'http://localhost:5000/api/auth/login' 
       : 'http://localhost:5000/api/auth/registro';
 
     try {
-      // Se envian las dos variantes de nombres para garantizar que coincida con tu backend
       const bodyPayload = {
         nombre: authData.nombre,
         email: authData.email,
@@ -91,7 +92,6 @@ function App() {
       });
 
       const data = await res.json();
-      console.log('📌 Respuesta recibida del servidor:', data);
 
       if (res.ok) {
         if (modoAuth === 'registro') {
@@ -113,7 +113,6 @@ function App() {
             timer: 2500
           });
 
-          // Guardar credenciales en el almacenamiento local
           if (data.token) localStorage.setItem('token', data.token);
           if (data.usuario) localStorage.setItem('usuario', JSON.stringify(data.usuario));
 
@@ -121,7 +120,6 @@ function App() {
           setUsuario(data.usuario || { nombre: authData.email, rol: 'paciente' });
         }
       } else {
-        console.warn('⚠️ El servidor respondió con un error:', data.error);
         Swal.fire({
           icon: 'error',
           title: 'Acceso fallido',
@@ -130,7 +128,6 @@ function App() {
         });
       }
     } catch (error) {
-      console.error('❌ Error de conexión con el backend:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error de conexión',
@@ -227,7 +224,6 @@ function App() {
     }
   };
 
-  // Función para guardar o editar recomendaciones médicas de una cita
   const handleGuardarNotas = async (cita) => {
     const { value: textoNotas } = await Swal.fire({
       title: '🩺 Notas y Recomendaciones',
@@ -239,9 +235,7 @@ function App() {
       confirmButtonText: 'Guardar Notas',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#0284c7',
-      inputAttributes: {
-        rows: 4
-      }
+      inputAttributes: { rows: 4 }
     });
 
     if (textoNotas !== undefined) {
@@ -318,6 +312,40 @@ function App() {
     });
   };
 
+  const handlePerfilChange = (e) => {
+    setPerfilData({ ...perfilData, [e.target.name]: e.target.value });
+  };
+
+  const handlePerfilSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('http://localhost:5000/api/auth/perfil', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(perfilData)
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Error al actualizar el perfil');
+
+      const usuarioActualizado = { ...usuario, nombre: perfilData.nombre, email: perfilData.email };
+      localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+      setUsuario(usuarioActualizado);
+
+      Swal.fire({
+        icon: 'success',
+        title: '¡Perfil Actualizado!',
+        text: 'Tus datos se han guardado correctamente.',
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      setPerfilData(prev => ({ ...prev, password: '' }));
+    } catch (error) {
+      Swal.fire('Error', error.message, 'error');
+    }
+  };
+
   if (!token) {
     return (
       <div className="auth-container">
@@ -361,7 +389,6 @@ function App() {
 
   const esAdmin = usuario?.rol === 'admin';
 
-  // Separación de citas por fecha para el paciente
   const fechaActualStr = hoyStr;
   const proximasCitas = citas.filter(cita => {
     const fechaCita = cita.fecha_cita ? cita.fecha_cita.split('T')[0] : '';
@@ -565,18 +592,50 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="form-group">
-                    <label>Nombre Completo:</label>
-                    <input type="text" value={usuario?.nombre || ''} disabled style={{ backgroundColor: '#f1f5f9' }} />
-                  </div>
-                  <div className="form-group">
-                    <label>Correo Electrónico:</label>
-                    <input type="email" value={usuario?.email || ''} disabled style={{ backgroundColor: '#f1f5f9' }} />
-                  </div>
-                  <div className="form-group">
-                    <label>Tipo de Cuenta:</label>
-                    <input type="text" value="Paciente Registrado" disabled style={{ backgroundColor: '#f1f5f9' }} />
-                  </div>
+                  <form onSubmit={handlePerfilSubmit}>
+                    <div className="form-group">
+                      <label>Nombre Completo:</label>
+                      <input 
+                        type="text" 
+                        name="nombre" 
+                        value={perfilData.nombre} 
+                        onChange={handlePerfilChange} 
+                        required 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Correo Electrónico:</label>
+                      <input 
+                        type="email" 
+                        name="email" 
+                        value={perfilData.email} 
+                        onChange={handlePerfilChange} 
+                        required 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Tipo de Cuenta:</label>
+                      <input 
+                        type="text" 
+                        value="Paciente Registrado" 
+                        disabled 
+                        style={{ background: '#f1f5f9', cursor: 'not-allowed' }} 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Nueva Contraseña (opcional):</label>
+                      <input 
+                        type="password" 
+                        name="password" 
+                        value={perfilData.password} 
+                        onChange={handlePerfilChange} 
+                        placeholder="Dejar en blanco para conservar la actual" 
+                      />
+                    </div>
+                    <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: '15px' }}>
+                      Actualizar Perfil
+                    </button>
+                  </form>
                 </div>
               )}
             </>
